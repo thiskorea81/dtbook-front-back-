@@ -1,10 +1,12 @@
-
-//dtbooks\src\stores\pdfStore.js
 import { defineStore } from 'pinia'
 
-export const usePdfStore = defineStore('pdf', {
+export const usePdfStore = defineStore({
+  id: 'pdf',
   state: () => ({
-    pdfData: null
+    pdfData: {
+      text: [],
+      images: []
+    }
   }),
   actions: {
     setPdfData(data) {

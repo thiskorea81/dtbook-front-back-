@@ -21,6 +21,7 @@ export default {
       formData.append('file', file)
 
       try {
+        console.log('Uploading file:', file)
         const response = await axios.post('http://localhost:8000/extract', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
