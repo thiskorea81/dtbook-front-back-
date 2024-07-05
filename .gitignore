@@ -1,0 +1,10 @@
+*.env
+.venv/
+.env
+bak/
+result.csv
+question.csv
+*.bak
+*.db
+*.pyc
+*.mp3
