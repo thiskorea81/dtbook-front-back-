@@ -1,20 +1,20 @@
 import fitz  # PyMuPDF
-import cv2
-import numpy as np
+from openai import OpenAI
+import os
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
-import os
-import io
-from PIL import Image
+import numpy as np
+import cv2
 
 app = FastAPI()
+client = OpenAI() #
+
 
 # CORS 설정 추가
 origins = [
     "http://localhost:5173",  # Vue.js 개발 서버의 주소
-    "http://127.0.0.1:5173",  # 추가로 127.0.0.1 주소도 포함
 ]
 
 app.add_middleware(
@@ -30,6 +30,18 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # 정적 파일 제공 설정
 app.mount("/images", StaticFiles(directory=UPLOAD_FOLDER), name="images")
+
+def convert_text_with_openai(text):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": f"Rewrite the following text in a more elegant and professional style:\n\n{text}"},
+            ]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Error in processing text with OpenAI: {e}"
 
 @app.post("/extract")
 async def extract_pdf(file: UploadFile = File(...)):
@@ -52,35 +64,29 @@ async def extract_pdf(file: UploadFile = File(...)):
         text_content.append(page.get_text("text"))
 
         image_list = page.get_images(full=True)
-        print(f"Page {page_num+1} has {len(image_list)} images.")
         for img_index, img in enumerate(image_list):
-            try:
-                xref = img[0]
-                base_image = pdf_document.extract_image(xref)
-                image_bytes = base_image["image"]
-                image_ext = "png"  # 모든 이미지를 png로 저장
-                image_filename = f"image_page{page_num+1}_{img_index}.{image_ext}"
-                image_path = os.path.join(pdf_folder, image_filename)
-                
-                # OpenCV를 사용하여 이미지를 PNG로 변환 및 저장
-                nparr = np.frombuffer(image_bytes, np.uint8)
-                image = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
-                if image is not None:
-                    if len(image.shape) == 2:  # 그레이스케일 이미지
-                        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-                    elif image.shape[2] == 4:  # 이미지가 RGBA인 경우
-                        image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
-                    else:  # 그 외의 경우는 RGB로 변환
-                        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                    cv2.imwrite(image_path, image)
-                    print(f"Saved image {image_filename} at {os.path.abspath(image_path)}")
-                else:
-                    with open(image_path, "wb") as img_file:
-                        img_file.write(image_bytes)
-                    print(f"Saved image {image_filename} at {os.path.abspath(image_path)} without conversion")
-                
-                images.append(os.path.join(os.path.basename(pdf_folder), image_filename))
-            except Exception as e:
-                print(f"Error processing image on page {page_num+1}, index {img_index}: {str(e)}")
+            xref = img[0]
+            base_image = pdf_document.extract_image(xref)
+            image_bytes = base_image["image"]
+            image_ext = base_image["ext"]
+            image_filename = f"image_page{page_num+1}_{img_index}.{image_ext}"
+            image_path = os.path.join(pdf_folder, image_filename)
+            with open(image_path, "wb") as img_file:
+                img_file.write(image_bytes)
+            images.append(os.path.join(os.path.basename(pdf_folder), image_filename))
     
     return JSONResponse(content={"text": text_content, "images": images})
+
+@app.post("/chat")
+async def chat_with_student(prompt: dict):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "학생과 책과 관련된 모르는 부분에 대한 질문에 답하는 역할"},
+                {"role": "user", "content": prompt["prompt"]}
+            ]
+        )
+        return JSONResponse(content={"response": response.choices[0].message.content})
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)

@@ -1,16 +1,11 @@
+// frontend/src/App.vue
 <template>
-  <nav>
-    <RouterLink to="/">Home </RouterLink>
-    <RouterLink to="/result"> Result</RouterLink>
-  </nav>
   <div id="app">
     <router-view />
   </div>
 </template>
 
 <script>
-import { RouterLink } from 'vue-router';
-
 export default {
   name: 'App'
 }
